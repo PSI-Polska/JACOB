@@ -27,12 +27,16 @@
 #include <oleauto.h>
 #include <olectl.h>
 #include "util.h"
+#include <stdio.h>
+#include <comutil.h>
 
 extern "C" 
 {
 
 #define DISP_FLD "m_pDispatch"
-
+#define IBT_FORMAT L"{A27F12A1-4305-11D2-BE48-004005A04EDF}"
+#define IBT_APPLICATION L"{75248841-42D0-11D2-B7D3-00104B639F6F}"
+#define IBT_MESSAGES L"{365EE8DD-7FBD-44CC-8BCA-FF81E54FDF9B}"
 // extract a IDispatch from a jobject
 IDispatch *extractDispatch(JNIEnv *env, jobject arg)
 {
@@ -42,6 +46,481 @@ IDispatch *extractDispatch(JNIEnv *env, jobject arg)
   IDispatch *v = (IDispatch *)anum;
   return v;
 }
+
+HRESULT canCastDispatchToIBtApplication(IDispatch **dispatch){
+	IID iid;
+	HRESULT hr;
+	
+	IIDFromString(IBT_APPLICATION, &iid);
+	hr = ((*dispatch))->QueryInterface(iid, (void **)dispatch);
+	
+	return hr;
+}
+	
+HRESULT canCastDispatchToIBtFormat(IDispatch **dispatch){
+	IID iid;
+	HRESULT hr;
+	
+	IIDFromString(IBT_FORMAT, &iid);
+	hr = ((*dispatch))->QueryInterface(iid, (void **)dispatch);
+	
+	return hr;
+}
+
+HRESULT canCastDispatchToIBtMessages(IDispatch **dispatch){
+	IID iid;
+	HRESULT hr;
+	
+	IIDFromString(IBT_MESSAGES, &iid);
+	hr = ((*dispatch))->QueryInterface(iid, (void **)dispatch);
+	
+	return hr;
+}
+
+HRESULT getIDOfName(IDispatch *dispatch, LPOLESTR ptName, DISPID *dispID){
+
+	HRESULT hr;
+	
+    hr = dispatch->GetIDsOfNames(IID_NULL, &ptName, 1, LOCALE_USER_DEFAULT, dispID);
+	
+	return hr;
+}
+
+jobject createNewReturnValue(JNIEnv *env, IDispatch *dispatch){
+
+    jclass autoClass = env->FindClass("com/jacob/com/Dispatch");
+	
+    jmethodID autoCons =
+    env->GetMethodID(autoClass, "<init>", "(J)V");
+    // construct a Dispatch object to return
+    // I am copying the pointer to java
+    if (dispatch) dispatch->AddRef();
+    jobject newAuto = env->NewObject(autoClass, autoCons, dispatch);
+
+	return newAuto;
+}
+
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_print
+	(JNIEnv *env, jobject _this, jstring _printJobName, jboolean _waitForJobToComplete, jint _timeoutMs){
+	
+    DISPPARAMS dp = { NULL, NULL, 0, 0 };
+    DISPID dispidNamed = DISPID_PROPERTYPUT;
+    DISPID dispID;
+    HRESULT hr;
+	VARIANT pvResult;
+	jint jintResult;
+	
+	IDispatch *dispatch = extractDispatch( env, _this);
+
+	hr = canCastDispatchToIBtFormat(&dispatch);
+	if (FAILED(hr)){
+		ThrowComFail(env, "actual interface cannot be cast to IBtFormat", hr);
+		return NULL;
+	}
+
+	hr = getIDOfName(dispatch, L"Print", &dispID);
+    if(FAILED(hr)) {	
+		ThrowComFail(env, "GetIdsOfNames of Print failed", hr);
+		return NULL;
+    }	
+	
+	
+	
+	const char *printJobName = env->GetStringUTFChars(_printJobName, NULL);
+	
+	
+    VARIANT *pArgs = new VARIANT[5];	
+    pArgs[3].vt = VT_BSTR; pArgs[3].bstrVal = _com_util::ConvertStringToBSTR(printJobName);//::SysAllocString(L"1");
+	pArgs[2].vt = VT_I4; pArgs[2].lVal = _waitForJobToComplete;
+	pArgs[1].vt = VT_I4; pArgs[1].lVal = _timeoutMs;
+	/*
+    pArgs[6].vt = VT_I4; pArgs[6].lVal = _colors;
+    pArgs[5].vt = VT_I4; pArgs[5].lVal = _dpi;
+    pArgs[4].vt = VT_I4; pArgs[4].lVal = _backgroundColor;
+    pArgs[3].vt = VT_I4; pArgs[3].lVal = _saveOpts;
+    pArgs[2].vt = VT_I4; pArgs[2].lVal = _includeMargins;
+    pArgs[1].vt = VT_I4; pArgs[1].lVal = _includeBorder;
+*/
+	IDispatch *messagesDispatcher = NULL;
+	pArgs[0].vt = VT_DISPATCH | VT_BYREF; pArgs[0].ppdispVal = &messagesDispatcher;
+	
+    dp.cArgs = 4;
+    dp.rgvarg = pArgs;
+
+	
+	
+	hr = dispatch->Invoke(dispID, IID_NULL, LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &dp, &pvResult, NULL, NULL);
+	
+	jintResult = (jint)V_I4(&pvResult);
+	
+	env->ReleaseStringUTFChars(_printJobName, printJobName);
+/*	env->ReleaseStringUTFChars(_pageRange, nPageRange);
+	env->ReleaseStringUTFChars(_pathToSave, nPathToSave);
+	env->ReleaseStringUTFChars(_filenameTemplate, nFilenameTemplate);
+	env->ReleaseStringUTFChars(_filenameType, nFilenameType);
+	*/
+	if (FAILED(hr)){
+		ThrowComFail(env, "error occured during invoke call", hr);
+		return NULL;
+	}
+	hr = canCastDispatchToIBtMessages(&messagesDispatcher);
+	if (FAILED(hr)){
+		ThrowComFail(env, "returned interface cannot be cast to IBtMessages", hr);
+		return NULL;
+	}
+	
+	delete [] pArgs;	
+	
+	// prepare a new return value
+	jobject newAuto = createNewReturnValue(env, messagesDispatcher );
+	
+/*    jclass autoClass = env->FindClass("com/jacob/com/Dispatch");
+    jmethodID autoCons =
+    env->GetMethodID(autoClass, "<init>", "(I)V");
+    // construct a Dispatch object to return
+    // I am copying the pointer to java
+    if (messagesDispatcher) messagesDispatcher->AddRef();
+    jobject newAuto = env->NewObject(autoClass, autoCons, messagesDispatcher);
+	*/
+	
+	
+		
+	
+	return newAuto;	
+}
+
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_exportPrintPreviewRangeToImage
+	(JNIEnv *env, jobject _this, jstring _pageRange, jstring _pathToSave, jstring _filenameTemplate, jstring _filenameType, jint _colors, 
+		jint _dpi, jint _backgroundColor, jint _saveOpts, jboolean _includeMargins, jboolean _includeBorder){
+	
+    DISPPARAMS dp = { NULL, NULL, 0, 0 };
+    DISPID dispidNamed = DISPID_PROPERTYPUT;
+    DISPID dispID;
+    HRESULT hr;
+	VARIANT pvResult;
+	jint jintResult;
+	
+	
+	
+	
+	
+	IDispatch *dispatch = extractDispatch( env, _this);
+	
+	//	check if dispatch can be cast to IBtFormat
+	hr = canCastDispatchToIBtFormat(&dispatch);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "actual interface cannot be cast to IBtFormat", hr);
+		return NULL;
+	}
+/*	IIDFromString(IBT_FORMAT, &iid);
+	hr = dispatch->QueryInterface(iid, (void **)&dispatch);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "actual interface cannot be cast to IBtFormat", hr);
+		return NULL ;
+	} */
+	
+    // Get DISPID for name passed...
+/*	LPOLESTR ptName = L"ExportPrintPreviewRangeToImage";
+    hr = dispatch->GetIDsOfNames(IID_NULL, &ptName, 1, LOCALE_USER_DEFAULT, &dispID);
+    if(FAILED(hr)) {
+		
+				
+		ThrowComFail(env, "GetIdsOfNames of ExportPrintPreviewRangeToImage failed", hr);
+		return NULL;
+    }	
+	*/
+	hr = getIDOfName(dispatch, L"ExportPrintPreviewRangeToImage", &dispID);
+    if(FAILED(hr)) {
+		
+				
+		ThrowComFail(env, "GetIdsOfNames of ExportPrintPreviewRangeToImage failed", hr);
+		return NULL;
+    }	
+	
+	const char *nPageRange = env->GetStringUTFChars(_pageRange, NULL);
+	const char *nPathToSave = env->GetStringUTFChars(_pathToSave, NULL);
+	const char *nFilenameTemplate = env->GetStringUTFChars(_filenameTemplate, NULL);
+	const char *nFilenameType = env->GetStringUTFChars(_filenameType, NULL);	
+	
+    VARIANT *pArgs = new VARIANT[12];	
+    pArgs[10].vt = VT_BSTR; pArgs[10].bstrVal = _com_util::ConvertStringToBSTR(nPageRange);//::SysAllocString(L"1");
+    pArgs[9].vt = VT_BSTR; pArgs[9].bstrVal = _com_util::ConvertStringToBSTR(nPathToSave);//::SysAllocString(L"j:\\prg\\");
+    pArgs[8].vt = VT_BSTR; pArgs[8].bstrVal = _com_util::ConvertStringToBSTR(nFilenameTemplate);//::SysAllocString(L"Label_%PageNumber%_Preview.jpg");
+    pArgs[7].vt = VT_BSTR; pArgs[7].bstrVal = _com_util::ConvertStringToBSTR(nFilenameType);//::SysAllocString(L"jpg");
+    pArgs[6].vt = VT_I4; pArgs[6].lVal = _colors;
+    pArgs[5].vt = VT_I4; pArgs[5].lVal = _dpi;
+    pArgs[4].vt = VT_I4; pArgs[4].lVal = _backgroundColor;
+    pArgs[3].vt = VT_I4; pArgs[3].lVal = _saveOpts;
+    pArgs[2].vt = VT_I4; pArgs[2].lVal = _includeMargins;
+    pArgs[1].vt = VT_I4; pArgs[1].lVal = _includeBorder;
+
+	IDispatch *messagesDispatcher = NULL;
+	pArgs[0].vt = VT_DISPATCH | VT_BYREF; pArgs[0].ppdispVal = &messagesDispatcher;
+	
+    dp.cArgs = 11;
+    dp.rgvarg = pArgs;
+
+	
+	
+	
+	hr = dispatch->Invoke(dispID, IID_NULL, LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &dp, &pvResult, NULL, NULL);
+	
+	
+	
+	
+	
+	
+	jintResult = (jint)V_I4(&pvResult);
+	
+	
+	
+	
+	
+	env->ReleaseStringUTFChars(_pageRange, nPageRange);
+	env->ReleaseStringUTFChars(_pathToSave, nPathToSave);
+	env->ReleaseStringUTFChars(_filenameTemplate, nFilenameTemplate);
+	env->ReleaseStringUTFChars(_filenameType, nFilenameType);
+	
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "error occured during invoke call", hr);
+		return NULL;
+	}
+
+/*	IIDFromString(IBT_MESSAGES, &iid);
+	hr = messagesDispatcher->QueryInterface(iid, (void **)&messagesDispatcher);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "returned interface cannot be cast to IBtMessages", hr);
+		return NULL;
+	} 
+	*/
+
+	hr = canCastDispatchToIBtMessages(&messagesDispatcher);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "returned interface cannot be cast to IBtMessages", hr);
+		return NULL;
+	}
+	
+	delete [] pArgs;	
+	
+	// prepare a new return value
+	jobject newAuto = createNewReturnValue(env, messagesDispatcher );
+	
+/*    jclass autoClass = env->FindClass("com/jacob/com/Dispatch");
+    jmethodID autoCons =
+    env->GetMethodID(autoClass, "<init>", "(I)V");
+    // construct a Dispatch object to return
+    // I am copying the pointer to java
+    if (messagesDispatcher) messagesDispatcher->AddRef();
+    jobject newAuto = env->NewObject(autoClass, autoCons, messagesDispatcher);
+	*/
+	
+	
+		
+	
+	return newAuto;
+	}
+
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_exportPrintPreviewToImage
+	(JNIEnv *env, jobject _this, jstring _pathToSave, jstring _filenameTemplate, jstring _filenameType, jint _colors, 
+		jint _dpi, jint _backgroundColor, jint _saveOpts, jboolean _includeMargins, jboolean _includeBorder){
+	
+    DISPPARAMS dp = { NULL, NULL, 0, 0 };
+    DISPID dispidNamed = DISPID_PROPERTYPUT;
+    DISPID dispID;
+    HRESULT hr;
+	VARIANT pvResult;
+	jint jintResult;
+	
+	
+	
+	
+	
+	IDispatch *dispatch = extractDispatch( env, _this);
+	
+	//	check if dispatch can be cast to IBtFormat
+	hr = canCastDispatchToIBtFormat(&dispatch);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "actual interface cannot be cast to IBtFormat", hr);
+		return NULL;
+	}
+	
+	hr = getIDOfName(dispatch, L"ExportPrintPreviewToImage", &dispID);
+    if(FAILED(hr)) {
+		
+				
+		ThrowComFail(env, "GetIdsOfNames of ExportPrintPreviewToImage failed", hr);
+		return NULL;
+    }	
+	
+	const char *nPathToSave = env->GetStringUTFChars(_pathToSave, NULL);
+	const char *nFilenameTemplate = env->GetStringUTFChars(_filenameTemplate, NULL);
+	const char *nFilenameType = env->GetStringUTFChars(_filenameType, NULL);	
+	
+    VARIANT *pArgs = new VARIANT[11];	
+    pArgs[9].vt = VT_BSTR; pArgs[9].bstrVal = _com_util::ConvertStringToBSTR(nPathToSave);//::SysAllocString(L"j:\\prg\\");
+    pArgs[8].vt = VT_BSTR; pArgs[8].bstrVal = _com_util::ConvertStringToBSTR(nFilenameTemplate);//::SysAllocString(L"Label_%PageNumber%_Preview.jpg");
+    pArgs[7].vt = VT_BSTR; pArgs[7].bstrVal = _com_util::ConvertStringToBSTR(nFilenameType);//::SysAllocString(L"jpg");
+    pArgs[6].vt = VT_I4; pArgs[6].lVal = _colors;
+    pArgs[5].vt = VT_I4; pArgs[5].lVal = _dpi;
+    pArgs[4].vt = VT_I4; pArgs[4].lVal = _backgroundColor;
+    pArgs[3].vt = VT_I4; pArgs[3].lVal = _saveOpts;
+    pArgs[2].vt = VT_I4; pArgs[2].lVal = _includeMargins;
+    pArgs[1].vt = VT_I4; pArgs[1].lVal = _includeBorder;
+
+	IDispatch *messagesDispatcher = NULL;
+	pArgs[0].vt = VT_DISPATCH | VT_BYREF; pArgs[0].ppdispVal = &messagesDispatcher;
+	
+    dp.cArgs = 10;
+    dp.rgvarg = pArgs;
+
+	
+	
+	
+	hr = dispatch->Invoke(dispID, IID_NULL, LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &dp, &pvResult, NULL, NULL);
+	
+	
+	
+	
+	
+	
+	jintResult = (jint)V_I4(&pvResult);
+	
+	
+	
+	
+	
+	env->ReleaseStringUTFChars(_pathToSave, nPathToSave);
+	env->ReleaseStringUTFChars(_filenameTemplate, nFilenameTemplate);
+	env->ReleaseStringUTFChars(_filenameType, nFilenameType);
+	
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "error occured during invoke call", hr);
+		return NULL;
+	}
+
+	hr = canCastDispatchToIBtMessages(&messagesDispatcher);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "returned interface cannot be cast to IBtMessages", hr);
+		return NULL;
+	}
+	
+	delete [] pArgs;	
+	
+	// prepare a new return value
+	jobject newAuto = createNewReturnValue(env, messagesDispatcher );
+	
+	
+		
+	
+	return newAuto;
+	}	
+	
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_xmlScript
+	(JNIEnv *env, jobject _this, jstring _xmlScript, jint _xmlSourceType){
+	
+		
+    DISPPARAMS dp = { NULL, NULL, 0, 0 };
+    DISPID dispidNamed = DISPID_PROPERTYPUT;
+    DISPID dispID;
+    HRESULT hr;
+	VARIANT pvResult;
+	jint jintResult;
+	
+	
+	
+	
+	
+	IDispatch *dispatch = extractDispatch( env, _this);
+	
+	//	check if dispatch can be cast to IBtFormat
+//	hr = canCastDispatchToIBtFormat(&dispatch);
+	hr = canCastDispatchToIBtApplication(&dispatch);
+	if (FAILED(hr)){
+	
+		
+		ThrowComFail(env, "actual interface cannot be cast to IBtApplication", hr);
+		return NULL;
+	}
+	
+	hr = getIDOfName(dispatch, L"XMLScript", &dispID);
+    if(FAILED(hr)) {
+	
+				
+		ThrowComFail(env, "GetIdsOfNames of XMLScript failed", hr);
+		return NULL;
+    }	
+	
+	const char *xmlScript = env->GetStringUTFChars(_xmlScript, NULL);
+	
+    VARIANT *pArgs = new VARIANT[4];	
+    pArgs[2].vt = VT_BSTR; pArgs[2].bstrVal = _com_util::ConvertStringToBSTR(xmlScript);//::SysAllocString(L"j:\\prg\\");
+    pArgs[1].vt = VT_I4; pArgs[1].lVal = _xmlSourceType;
+
+	IDispatch *messagesDispatcher = NULL;
+	pArgs[0].vt = VT_DISPATCH | VT_BYREF; pArgs[0].ppdispVal = &messagesDispatcher;
+	
+    dp.cArgs = 3;
+    dp.rgvarg = pArgs;
+
+	
+	
+	
+	hr = dispatch->Invoke(dispID, IID_NULL, LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &dp, &pvResult, NULL, NULL);
+	
+	
+	
+	
+	
+	
+	jintResult = (jint)V_I4(&pvResult);
+	
+	
+	
+	
+	
+	env->ReleaseStringUTFChars(_xmlScript, xmlScript);
+	
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "error occured during invoke call", hr);
+		return NULL;
+	}
+
+	hr = canCastDispatchToIBtMessages(&messagesDispatcher);
+	if (FAILED(hr)){
+		
+		
+		ThrowComFail(env, "returned interface cannot be cast to IBtMessages", hr);
+		return NULL;
+	}
+	
+	delete [] pArgs;	
+	
+	// prepare a new return value
+	jobject newAuto = createNewReturnValue(env, messagesDispatcher );
+	
+	
+		
+	
+	return newAuto;
+	}	
 
 /**
  * This method finds an interface rooted on the passed in dispatch object.

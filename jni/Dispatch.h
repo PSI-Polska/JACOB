@@ -25,6 +25,42 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Class:     com_jacob_com_Dispatch
+ * Method:    exportPrintPreviewRangeToImage
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIZZ)LDispatch;
+ */
+ 
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_exportPrintPreviewRangeToImage
+	(JNIEnv *env, jobject _this, jstring _pageRange, jstring _pathToSave, jstring _fileNameTemplate, jstring _fileNameType, jint _colors, 
+		jint _dpi, jint _backgroundColor, jint _saveOpts, jboolean _includeMargins, jboolean _includeBorder);
+
+/*
+ * Class:     com_jacob_com_Dispatch
+ * Method:    exportPrintPreviewRangeToImage
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIZZ)LDispatch;
+ */
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_exportPrintPreviewToImage
+	(JNIEnv *env, jobject _this, jstring _pathToSave, jstring _filenameTemplate, jstring _filenameType, jint _colors, 
+		jint _dpi, jint _backgroundColor, jint _saveOpts, jboolean _includeMargins, jboolean _includeBorder);
+
+/*
+ * Class:     com_jacob_com_Dispatch
+ * Method:    xmlScript
+ * Signature: (Ljava/lang/String;I)LDispatch;
+ */		
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_xmlScript
+	(JNIEnv *env, jobject _this, jstring _xmlScript, jint _xmlSourceType);		
+/*
+ * Class:     com_jacob_com_Dispatch
+ * Method:    print
+ * Signature: (Ljava/lang/String;ZI)LDispatch;
+ */
+JNIEXPORT jobject JNICALL Java_com_jacob_com_Dispatch_print
+	(JNIEnv *env, jobject _this, jstring _printJobName, jboolean _waitForJobToComplete, jint _timeoutMs);
+
+
 /*
  * Class:     com_jacob_com_Dispatch
  * Method:    QueryInterface

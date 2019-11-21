@@ -102,7 +102,13 @@ public class Dispatch extends JacobObject {
 					"Dispatch(String) does not accept null or an empty string as a parameter");
 		}
 	}
-
+ 	public native Dispatch exportPrintPreviewRangeToImage(String pageRange, String pathToSave, String fileNameTemplate, String fileType, int colors, int dpi, int backgroundColor, int saveOpts, boolean includeMargins, boolean includeBorder);
+	
+ 	public native Dispatch exportPrintPreviewToImage(String pathToSave, String fileNameTemplate, String fileType, int colors, int dpi, int backgroundColor, int saveOpts, boolean includeMargins, boolean includeBorder);	
+ 	
+	public native Dispatch print(String printJobName, boolean waitForComplete, int timeoutInMs);
+ 	
+ 	public native Dispatch xmlScript(String script, int btXmlSourceType);
 	/**
 	 * native call createInstance only used by the constructor with the same
 	 * parm type. This probably should be private. It is the wrapper for the
